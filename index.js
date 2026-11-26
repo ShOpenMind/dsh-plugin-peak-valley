@@ -55,6 +55,7 @@ export const DEFAULTS = Object.freeze({
   providers: Object.freeze(['deepseek-official', 'deepseek-account']),
   local: Object.freeze({ provider: 'freetoken-local', model: 'Qwen3.6-35B-A3B-NVFP4' }),
   deferTitle: '波峰波谷：低谷重新提交',
+  askTimeoutMs: 10 * 60 * 1000,
 })
 
 /**
@@ -65,6 +66,7 @@ export const DEFAULTS = Object.freeze({
  * @param {string[]} [config.providers] - model providers billed with peak pricing.
  * @param {{ provider: string, model: string, reasoningEffort?: string }} [config.local] - local route used by choice 2.
  * @param {string} [config.deferTitle] - schedule title prefix for choice 1.
+ * @param {number} [config.askTimeoutMs] - how long to wait for the card before continuing; 0 waits forever.
  * @param {() => number} [config.now] - clock override for tests.
  * @returns {void}
  */
@@ -119,15 +121,16 @@ async function gate(env, payload, next) {
 
   let answer
   try {
-    answer = await env.ctx.userQuestions.ask({
+    answer = await askWithin(env, {
       agent,
       questions: [buildQuestion({ deferAtLabel: formatBeijing(at), localLabel })],
       ...(signal ? { signal } : {}),
-    })
+    }, env.cfg.askTimeoutMs)
   } catch (error) {
-    // No answerer (headless/API session, delegated child) or a service
-    // failure: fail open, the prompt already reached the turn.
-    env.log?.debug?.(`peak-valley: question unavailable; continuing the turn (${describe(error)})`)
+    // No answerer (headless/API session, delegated child), a service failure,
+    // or a card nobody answered in time: fail open, the prompt already
+    // reached the turn.
+    env.log?.warn?.(`peak-valley: question unavailable or unanswered; continuing the turn (${describe(error)})`)
     return next()
   }
 
@@ -137,6 +140,28 @@ async function gate(env, payload, next) {
     case CHOICE_CONTINUE:
     default: return next()
   }
+}
+
+/**
+ * Await the blocking question, bounded by `askTimeoutMs` so a composer card
+ * that never reaches the UI cannot strand the turn forever. The abandoned
+ * waterfall stays pending; answering the stale card later is a no-op.
+ * @param {object} env - plugin state.
+ * @param {object} request - user-questions request.
+ * @param {number} timeoutMs - 0 waits forever.
+ * @returns {Promise<object>} the answer.
+ */
+function askWithin(env, request, timeoutMs) {
+  const answer = env.ctx.userQuestions.ask(request)
+  if (!(timeoutMs > 0)) return answer
+
+  let timer
+  const timeout = new Promise((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`no answer within ${Math.round(timeoutMs / 1000)}s`))
+    }, timeoutMs)
+  })
+  return Promise.race([answer, timeout]).finally(() => clearTimeout(timer))
 }
 
 /**
@@ -261,6 +286,11 @@ export function resolveConfig(config) {
     deferTitle: typeof source.deferTitle === 'string' && source.deferTitle.trim().length > 0
       ? source.deferTitle.trim()
       : DEFAULTS.deferTitle,
+    askTimeoutMs: source.askTimeoutMs === undefined
+      ? DEFAULTS.askTimeoutMs
+      : (Number.isFinite(source.askTimeoutMs) && source.askTimeoutMs >= 0
+          ? source.askTimeoutMs
+          : DEFAULTS.askTimeoutMs),
     now: typeof source.now === 'function' ? source.now : () => Date.now(),
   }
 }

@@ -51,6 +51,7 @@ function setup(options = {}) {
     userQuestions: {
       async ask(request) {
         calls.ask.push(request)
+        if (options.askHang) return new Promise(() => {})
         if (options.askError) throw options.askError
         return options.answer
       },
@@ -136,6 +137,13 @@ test('a failed route switch fails open instead of dropping the prompt', async ()
   assert.equal(await s.gate(payload(agent, message)), 'NEXT')
   await delay(10)
   assert.equal(calls.followup.length, 0)
+  assert.equal(s.calls.ask.length, 1)
+})
+
+test('a question that is never answered times out and continues', async () => {
+  const s = setup({ askHang: true, config: { askTimeoutMs: 25 } })
+  const { agent } = makeAgent()
+  assert.equal(await s.gate(payload(agent)), 'NEXT')
   assert.equal(s.calls.ask.length, 1)
 })
 

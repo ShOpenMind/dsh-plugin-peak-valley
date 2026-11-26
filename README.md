@@ -31,6 +31,7 @@ DeepSeek API 的高峰时段（工作日北京时间 09:00–12:00、14:00–18:
       provider: freetoken-local
       model: Qwen3.6-35B-A3B-NVFP4
     deferTitle: 波峰波谷：低谷重新提交
+    askTimeoutMs: 600000
 ```
 
 | 字段 | 默认 | 说明 |
@@ -39,6 +40,7 @@ DeepSeek API 的高峰时段（工作日北京时间 09:00–12:00、14:00–18:
 | `providers` | `[deepseek-official, deepseek-account]` | 只有当前模型路由的 provider 在此列表里才拦 |
 | `local.provider` / `local.model` | `freetoken-local` / `Qwen3.6-35B-A3B-NVFP4` | 「路由到本地模型」用的路由；可加 `reasoningEffort` |
 | `deferTitle` | `波峰波谷：低谷重新提交` | 定时任务标题前缀 |
+| `askTimeoutMs` | `600000`（10 分钟） | 卡片最多等多久；超时按「继续进行」放行，`0` 表示无限等 |
 
 峰谷规则写死在 `lib/peak.js`：2026 年国务院节假日表、周末全天低谷、窗口为半开区间 `[09:00, 12:00) [14:00, 18:00)`。规则年份见 `HOLIDAY_COVERAGE`，该年的表用完后 `holidayTableCovers()` 返回 false。
 
@@ -48,6 +50,7 @@ DeepSeek API 的高峰时段（工作日北京时间 09:00–12:00、14:00–18:
 - **本地模型要先起服务**：选「路由到本地模型」只是把这一回合的路由切到 `local`，本地 provider（`http://127.0.0.1:1919/v1`）没启动时这一回合会失败。建议先验证本地服务再选。
 - **卡片需要能作答的客户端**：Host 侧没有界面时（headless/API 会话、子代理）问不到答案，gate 会 fail-open 直接继续，不会卡住回合。
 - **每条消息问一次**：同一回合的后续步骤（step > 1）不再询问。
+- **无人作答 10 分钟后放行**：卡片一直没被点（例如你在别的会话）时，`askTimeoutMs` 到点按「继续进行」执行，避免回合永久挂起。
 - 消息被「暂不进行」时本回合会被 reject，这条用户消息不会留在会话记录里；低谷重发后会以定时消息的形式出现。
 
 ## 结构
