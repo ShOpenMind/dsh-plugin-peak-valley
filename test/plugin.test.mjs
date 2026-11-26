@@ -19,11 +19,16 @@ function userMessage(text = '帮我把这个脚本重构成零依赖的') {
   return { id: 'message-1', role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text }] }
 }
 
-function makeAgent() {
+function makeAgent({ selectError } = {}) {
   const calls = { select: [], followup: [] }
   const agent = {
     session: { id: 'session-1' },
-    model: { select: selection => calls.select.push(selection) },
+    model: {
+      select: selection => {
+        if (selectError) throw selectError
+        calls.select.push(selection)
+      },
+    },
     whenIdle: async () => {},
     followup: message => calls.followup.push(message),
   }
@@ -122,6 +127,16 @@ test('local switches the route, rejects, and re-drives the same message once', a
   // Once that turn is idle the session goes back to its previous route.
   await delay(10)
   assert.deepEqual(calls.select, [LOCAL_ROUTE, DEEPSEEK])
+})
+
+test('a failed route switch fails open instead of dropping the prompt', async () => {
+  const s = setup({ answer: answer(OPTION_LOCAL) })
+  const { agent, calls } = makeAgent({ selectError: new Error('unknown provider') })
+  const message = userMessage()
+  assert.equal(await s.gate(payload(agent, message)), 'NEXT')
+  await delay(10)
+  assert.equal(calls.followup.length, 0)
+  assert.equal(s.calls.ask.length, 1)
 })
 
 test('an unavailable question answerer fails open', async () => {

@@ -133,7 +133,7 @@ async function gate(env, payload, next) {
 
   switch (choiceFromAnswer(answer)) {
     case CHOICE_DEFER: return defer(env, agent, prompt, at, signal, next)
-    case CHOICE_LOCAL: return routeLocal(env, agent, prompt, modelSelection)
+    case CHOICE_LOCAL: return routeLocal(env, agent, prompt, modelSelection, next)
     case CHOICE_CONTINUE:
     default: return next()
   }
@@ -182,18 +182,21 @@ async function defer(env, agent, prompt, at, signal, next) {
  * @param {object} agent - the acting Agent.
  * @param {object} prompt - the claimed user message.
  * @param {{ provider: string, model: string, reasoningEffort?: string }} modelSelection - current route.
- * @returns {object} always `{ kind: 'reject' }`.
+ * @param {() => Promise<object>} next - downstream step decision.
+ * @returns {Promise<object>} reject, or the normal step when the switch failed.
  */
-function routeLocal(env, agent, prompt, modelSelection) {
+async function routeLocal(env, agent, prompt, modelSelection, next) {
   const previous = { provider: modelSelection.provider, model: modelSelection.model }
   if (modelSelection.reasoningEffort) previous.reasoningEffort = modelSelection.reasoningEffort
 
-  env.pendingLocal.set(prompt.id, { previous })
-  selectRoute(env, agent, {
+  const switched = selectRoute(env, agent, {
     provider: env.cfg.local.provider,
     model: env.cfg.local.model,
     ...(env.cfg.local.reasoningEffort ? { reasoningEffort: env.cfg.local.reasoningEffort } : {}),
   })
+  if (!switched) return next()
+
+  env.pendingLocal.set(prompt.id, { previous })
 
   // `setTimeout(…, 0)` could fire before the Host leaves `running`, and a
   // followup queued while running does not wake the driver. Waiting for the
@@ -207,6 +210,7 @@ function routeLocal(env, agent, prompt, modelSelection) {
       agent.followup(prompt)
     })
     .catch(error => {
+      env.pendingLocal.delete(prompt.id)
       env.log?.warn?.(`peak-valley: could not re-drive the prompt on the local route (${describe(error)})`)
     })
 
@@ -218,13 +222,15 @@ function routeLocal(env, agent, prompt, modelSelection) {
  * @param {object} env - plugin state.
  * @param {object} agent - the acting Agent.
  * @param {object} selection - provider/model/reasoningEffort.
- * @returns {void}
+ * @returns {boolean} true when the durable selection was recorded.
  */
 function selectRoute(env, agent, selection) {
   try {
     agent.model.select(selection)
+    return true
   } catch (error) {
     env.log?.warn?.(`peak-valley: could not switch the model route (${describe(error)})`)
+    return false
   }
 }
 

@@ -55,13 +55,14 @@ Host 侧可选的点：
 | 没有可作答的客户端（headless/API、子代理 origin） | `ask` 抛错 → 直接继续回合 |
 | `userQuestions`/`schedule` 服务缺失 | `inject` 不满足，整条插件不加载 |
 | 排队失败（schedule 抛错） | 继续当前回合，不吞消息 |
+| `agent.model.select` 抛错（未知 provider 等） | 不记录待重驱标记、不 followup，继续当前回合 |
 | 回答被跳过/自定义/结构不认识 | 视为「继续进行」 |
 | 消息无文本 | 不排队，继续当前回合 |
 | 非高峰 / 非配置 provider / step > 1 / 非人类消息 | 直接 `next()` |
 
 ## 验证清单
 
-1. `node --test "test/*.test.mjs"` 全绿（28 个用例）。
+1. `node --test "test/*.test.mjs"` 全绿（29 个用例）。
 2. 安装后 `plugin_manager` 列出 `peak-valley` 行、无 warnings。
 3. 高峰时段在 Web GUI 发一条消息：输入区出现三选项卡片，标题「高峰时段」。
 4. 选「继续进行」：本回合照常执行，无重复消息。
