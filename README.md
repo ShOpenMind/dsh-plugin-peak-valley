@@ -11,11 +11,13 @@ DeepSeek API 的高峰时段（工作日北京时间 09:00–12:00、14:00–18:
 ## 安装
 
 ```powershell
-# 在 DSH 里用 plugin_manager 安装本地包目录
-# action: install_bundle, target: C:\path\to\peak-valley
+git clone https://github.com/ShOpenMind/dsh-plugin-peak-valley
+# 然后在 DSH 里用 plugin_manager 安装这个目录：
+# action: install_bundle
+# target: C:\path\to\dsh-plugin-peak-valley
 ```
 
-安装是 `link:` 目录，改完源码后生效方式取决于 Host 是否热重载；最稳妥是重启应用。
+安装是 `link:` 目录：改完源码后重载插件（在插件列表里禁用再启用）或重启应用生效。需要能显示提问卡片的客户端（Web GUI / 桌面端）；没有界面的会话会自动 fail-open 继续执行。
 
 ## 配置
 
