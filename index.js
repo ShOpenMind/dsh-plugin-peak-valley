@@ -23,8 +23,10 @@
  * - Returning `{ kind: 'reject' }` closes the turn without a step. The claimed
  *   prompt is neither logged as `user/message` nor re-emitted, so a re-drive
  *   has to re-queue the message object itself (`agent.followup`).
- * - A rejection makes the live driver idle, so a `setTimeout(…, 0)` callback
- *   can safely call `agent.followup(message)` and start a fresh turn.
+ * - The rejected turn closes the driver, so the re-drive waits for the real
+ *   idle boundary (`agent.whenIdle()`) before calling `agent.followup(...)`.
+ *   A timer that fires while the Host is still `running` would only queue the
+ *   message without waking the driver.
  * - The question is asked *without* a `wait.callId`, which is exactly the
  *   shape of a blocking composer question: the Client renders a fresh card
  *   and the answer returns through the waterfall.
@@ -72,15 +74,14 @@ export function apply(ctx, config = {}) {
 
   const log = loggerOf(ctx)
   const pendingLocal = new Map()
-  const timers = new Set()
+  const state = { disposed: false }
 
   ctx.effect(() => () => {
-    for (const timer of timers) clearTimeout(timer)
-    timers.clear()
+    state.disposed = true
     pendingLocal.clear()
   }, 'peak-valley: pending re-drives')
 
-  ctx.on('agent/pre-step', (payload, next) => gate({ ctx, cfg, log, pendingLocal, timers }, payload, next))
+  ctx.on('agent/pre-step', (payload, next) => gate({ ctx, cfg, log, pendingLocal, state }, payload, next))
 }
 
 /**
@@ -194,16 +195,20 @@ function routeLocal(env, agent, prompt, modelSelection) {
     ...(env.cfg.local.reasoningEffort ? { reasoningEffort: env.cfg.local.reasoningEffort } : {}),
   })
 
-  const timer = setTimeout(() => {
-    env.timers.delete(timer)
-    try {
+  // `setTimeout(…, 0)` could fire before the Host leaves `running`, and a
+  // followup queued while running does not wake the driver. Waiting for the
+  // real idle boundary is deterministic: the rejected turn has closed, so the
+  // followup starts a fresh turn on the route selected above.
+  Promise.resolve()
+    .then(() => agent.whenIdle?.())
+    .then(() => {
+      if (env.state.disposed) return
       // The rejected turn leaves the driver idle, so followup wakes a new turn.
       agent.followup(prompt)
-    } catch (error) {
+    })
+    .catch(error => {
       env.log?.warn?.(`peak-valley: could not re-drive the prompt on the local route (${describe(error)})`)
-    }
-  }, 0)
-  env.timers.add(timer)
+    })
 
   return { kind: 'reject' }
 }

@@ -21,11 +21,11 @@ Host 侧可选的点：
 
 1. 收到选择 local 后，记下 `previous = { provider, model, reasoningEffort? }`，按 `message.id` 存进 `pendingLocal`；
 2. `agent.model.select(local)` 写入一条 durable `model/selection`，但只影响**下一个** request；
-3. `setTimeout(..., 0)` 里 `agent.followup(message)`——此时本回合已 reject、driver 已 idle，followup 会唤醒新回合；
+3. `agent.whenIdle()` 之后再 `agent.followup(message)`——此时本回合已 reject、driver 已 idle，followup 会唤醒新回合；
 4. 新回合的 pre-step 看到同一个 `message.id` 在 `pendingLocal` 里，消费标记、直接 `next()`（不再提问）；
 5. 这个本地回合跑完后 `agent.whenIdle()` 回调里 `agent.model.select(previous)`，把会话恢复原路由。
 
-时序风险：`setTimeout(0)` 的回调必须在 driver 变成 idle 之后执行。若 Host 此时 phase 还是 running，`followup` 只会把消息放进 next-turn 队列而**不唤醒**（`wakeDriver` 在 running 期间只对 maintenance/abort 生效）。真机上如果发现本地回合没起来，把 `setTimeout(0)` 改成轮询 `agent.whenIdle()` 再 followup 即可。
+时序风险：不能在 reject 后立即 `setTimeout(0)` 就 followup。0ms 定时器可能赶在 Host 离开 `running` 之前触发，而 running 期间的 `followup` 只会把消息放进 next-turn 队列、**不唤醒**（`wakeDriver` 在 running 期间只对 maintenance/abort 生效），本地回合就不会起来。等 `whenIdle()` 是确定性的：reject 关闭的回合结束时 promise resolve，followup 再起新回合。
 
 ## 「暂不进行」的排队
 
