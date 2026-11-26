@@ -1,0 +1,14 @@
+# 波峰波谷：高峰提交拦截 + 三选一（低谷排队 / 本地路由 / 继续）。
+#
+# 默认配置写在 index.js 的 DEFAULTS 里；需要覆盖时取消下面 config 的注释。
+# - id 必须稳定，profile 用它来标记启用/停用。
+- insert:
+    - id: peak-valley
+      name: dsh-plugin-peak-valley
+      # config:
+      #   enabled: true
+      #   providers: [deepseek-official, deepseek-account]
+      #   local:
+      #     provider: freetoken-local
+      #     model: Qwen3.6-35B-A3B-NVFP4
+      #   deferTitle: 波峰波谷：低谷重新提交

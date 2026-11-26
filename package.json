@@ -1,0 +1,32 @@
+{
+  "name": "dsh-plugin-peak-valley",
+  "version": "0.1.0",
+  "private": true,
+  "description": "波峰波谷：DeepSeek 高峰时段提交前弹出三选一（低谷排队 / 本地模型 / 继续），低谷自动重发排队消息。",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "lib",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "docs",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}

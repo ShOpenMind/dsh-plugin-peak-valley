@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Peak/off-peak gate",
+    "description": "Before a DeepSeek turn runs during peak pricing, ask once: queue the prompt for the next off-peak window, route this turn to a local model, or continue at the peak price.",
+    "detail": "docs/DETAIL.md"
+  }
+}

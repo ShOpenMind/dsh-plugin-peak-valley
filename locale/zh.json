@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "峰谷时段把关",
+    "description": "DeepSeek 高峰时段提交消息前弹出三选一：排队到最近低谷、改用本地模型、或按高峰价继续。低谷时自动重发排队的消息。",
+    "detail": "docs/DETAIL.md"
+  }
+}
